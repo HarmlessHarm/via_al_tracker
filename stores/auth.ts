@@ -3,6 +3,7 @@
 import { defineStore } from 'pinia'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import type { User, UserRole } from '~/types'
+import { useSupabaseClient } from '~/lib/supabase.client'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -42,7 +43,7 @@ export const useAuthStore = defineStore('auth', {
         }
 
         // Listen for auth changes
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        supabase.auth.onAuthStateChange(async (event: string, session: any) => {
           if (event === 'SIGNED_IN' && session?.user) {
             this.supabaseUser = session.user
             await this.fetchCurrentUser(session.user.id)
@@ -130,7 +131,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (error: any) {
         this.error = error.message || 'Login failed'
         console.error('Login error:', error)
-        return { success: false, message: this.error }
+        return { success: false, message: this.error || undefined }
       } finally {
         this.loading = false
       }
@@ -196,7 +197,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (error: any) {
         this.error = error.message || 'Signup failed'
         console.error('Signup error:', error)
-        return { success: false, message: this.error }
+        return { success: false, message: this.error || undefined }
       } finally {
         this.loading = false
       }

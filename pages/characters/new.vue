@@ -271,7 +271,7 @@ const handleSubmit = async () => {
   saving.value = true
 
   try {
-    const newCharacter = createCharacter(form.value)
+    const newCharacter = await createCharacter(form.value)
 
     // Success - redirect to character detail
     await router.push(`/characters/${newCharacter.id}`)

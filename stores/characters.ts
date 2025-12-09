@@ -3,6 +3,7 @@
 import { defineStore } from 'pinia'
 import type { Character, CharacterFormData, CharacterWithTotalLevel } from '~/types'
 import { calculateTotalLevel } from '~/utils/validators'
+import { useSupabaseClient } from '~/lib/supabase.client'
 
 export const useCharactersStore = defineStore('characters', {
   state: () => ({
@@ -136,8 +137,8 @@ export const useCharactersStore = defineStore('characters', {
             race: formData.race,
             background: formData.background,
             characterSource: formData.characterSource,
-            dndBeyondLink: formData.dndBeyondLink,
-            pdfUrl: formData.pdfUrl,
+            dndBeyondLink: formData.dndBeyondLink || null,
+            pdfUrl: formData.pdfUrl || null,
             gold: formData.gold
           })
           .select()

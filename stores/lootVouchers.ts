@@ -2,6 +2,7 @@
 
 import { defineStore } from 'pinia'
 import type { LootVoucher, LootVoucherFormData, LootRarity } from '~/types'
+import { useSupabaseClient } from '~/lib/supabase.client'
 
 export const useLootVouchersStore = defineStore('lootVouchers', {
   state: () => ({

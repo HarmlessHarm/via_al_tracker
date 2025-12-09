@@ -2,6 +2,7 @@
 
 import { defineStore } from 'pinia'
 import type { AttendanceToken, AttendanceTokenFormData } from '~/types'
+import { useSupabaseClient } from '~/lib/supabase.client'
 
 export const useAttendanceStore = defineStore('attendance', {
   state: () => ({
