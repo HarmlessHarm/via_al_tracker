@@ -9,19 +9,29 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx drizzle/seed.ts"
   },
   "dependencies": {
     "@nuxt/icon": "^1.5.0",
     "@pinia/nuxt": "^0.5.0",
+    "@supabase/supabase-js": "^2.87.1",
+    "drizzle-orm": "^0.45.0",
     "nuxt": "^3.13.0",
     "pinia": "^2.2.0",
+    "postgres": "^3.4.7",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.12.0",
     "daisyui": "^4.12.0",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.21.0",
     "typescript": "^5.6.0",
     "vue-tsc": "^2.1.0"
   }

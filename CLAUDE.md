@@ -179,25 +179,46 @@ Admins can:
 4. Handle errors with toast notifications (DaisyUI alerts)
 5. Reset form and redirect on success
 
-## Future Supabase Migration Path
+## Supabase Backend (Available Now!)
 
-When migrating to Supabase backend:
+Supabase integration is **complete and ready to use**! The app includes both localStorage (current) and Supabase versions.
 
-1. **Auth**: Replace auth store with Supabase Auth
-   - `supabase.auth.signInWithPassword(email, password)`
-   - Session managed by Supabase client
+### Quick Start with Supabase
 
-2. **Database**: Use Drizzle ORM for schema migrations
-   - Define schema in `drizzle/schema.ts`
-   - Run migrations with Drizzle CLI
+1. **Setup**: Follow [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
+2. **Migrate**: Follow [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
+3. **Deploy**: Push schema with `npm run db:push`
+4. **Seed**: Run `npm run db:seed`
+5. **Switch**: Rename `.supabase.ts` stores to `.ts`
 
-3. **API Layer**: Replace localStorage with Supabase generated API
-   - Update stores to call `supabase.from('table').select()`
-   - Use Row Level Security for data isolation
+### Store Versions
 
-4. **Real-time**: Optional real-time subscriptions
-   - Subscribe to character/loot changes
-   - Auto-update UI on DM awards
+**localStorage stores** (current):
+- `stores/auth.ts`
+- `stores/characters.ts`
+- `stores/lootVouchers.ts`
+- `stores/attendance.ts`
+
+**Supabase stores** (ready):
+- `stores/auth.supabase.ts` - Uses Supabase Auth
+- `stores/characters.supabase.ts` - PostgreSQL queries
+- `stores/lootVouchers.supabase.ts` - With RLS
+- `stores/attendance.supabase.ts` - Type-safe
+
+### Key Differences
+
+**localStorage**: Synchronous, client-side only, plain-text passwords
+**Supabase**: Async, PostgreSQL, secure auth, Row Level Security, real-time capable
+
+### Database Commands
+
+```bash
+npm run db:generate    # Generate migrations from schema
+npm run db:push        # Push schema directly (dev)
+npm run db:migrate     # Run migrations (production)
+npm run db:studio      # Open Drizzle Studio
+npm run db:seed        # Seed with fixture data
+```
 
 ## Testing Users (Fixtures)
 ```

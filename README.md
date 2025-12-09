@@ -70,6 +70,8 @@ via_AL_tracker/
 
 ## Data Persistence
 
+### Current: localStorage (Active)
+
 Currently uses **localStorage** for data persistence (POC only). All data is stored with the `al_tracker_` prefix:
 
 - `al_tracker_users` - User accounts
@@ -79,6 +81,18 @@ Currently uses **localStorage** for data persistence (POC only). All data is sto
 - `al_tracker_currentUser` - Session data
 
 To reset data: Clear browser localStorage and refresh the page.
+
+### Migration to Supabase (Ready!)
+
+Supabase backend integration is **complete and ready to use**! See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for setup instructions and [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for migration steps.
+
+**Features with Supabase:**
+- Real PostgreSQL database
+- Supabase Auth with secure password hashing
+- Row Level Security (RLS) policies
+- Type-safe queries with Drizzle ORM
+- Real-time subscriptions (optional)
+- Automatic backups
 
 ## Workflow Examples
 
