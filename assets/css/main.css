@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for D&D Adventure League Tracker */
+
+/* Rarity color coding for loot vouchers */
+.rarity-common {
+  @apply border-gray-400 text-gray-700;
+}
+
+.rarity-uncommon {
+  @apply border-green-500 text-green-700;
+}
+
+.rarity-rare {
+  @apply border-blue-500 text-blue-700;
+}
+
+.rarity-very_rare {
+  @apply border-purple-500 text-purple-700;
+}
+
+.rarity-legendary {
+  @apply border-amber-500 text-amber-700;
+}
+
+/* Character level badges */
+.level-badge {
+  @apply badge badge-sm;
+}
+
+/* Smooth transitions */
+.smooth-transition {
+  @apply transition-all duration-200 ease-in-out;
+}
