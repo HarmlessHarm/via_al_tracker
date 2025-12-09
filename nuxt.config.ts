@@ -24,6 +24,10 @@ export default defineNuxtConfig({
     }
   },
 
+  nitro: {
+    preset: 'vercel'
+  },
+
   app: {
     head: {
       title: 'D&D Adventure League Tracker',

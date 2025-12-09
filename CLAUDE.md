@@ -22,6 +22,19 @@ npm run generate               # Generate static site
 
 **Note**: The dev server may use port 3001 if port 3000 is already in use. Check the terminal output for the actual port.
 
+### Deployment
+```bash
+# Deploy to Vercel (recommended)
+# See VERCEL_DEPLOYMENT.md for complete guide
+
+# Quick deploy (push to GitHub)
+git push origin main           # Vercel auto-deploys from GitHub
+
+# Or use Vercel CLI
+vercel                         # Deploy to preview
+vercel --prod                  # Deploy to production
+```
+
 ### Type Checking
 ```bash
 npm run typecheck              # Run TypeScript type checking

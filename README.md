@@ -20,6 +20,8 @@ A proof-of-concept Nuxt 3 application for tracking D&D Adventure League players,
 
 ## Quick Start
 
+### Local Development
+
 ```bash
 # Install dependencies
 npm install
@@ -29,6 +31,19 @@ npm run dev
 
 # Open browser to http://localhost:3001/
 ```
+
+### Deploy to Vercel
+
+**One-Click Deploy (localStorage version):**
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_USERNAME/via-al-tracker)
+
+**Manual Deployment:**
+See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for complete deployment instructions including:
+- localStorage version (no setup required)
+- Supabase version (production-ready)
+- Environment configuration
+- Custom domain setup
 
 ## Test Users
 

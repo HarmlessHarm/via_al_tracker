@@ -1,0 +1,30 @@
+# Vercel ignore file
+
+# Development files
+.env.local
+.env.development
+
+# Node modules
+node_modules
+
+# Build outputs (Vercel will build)
+.output
+dist
+.nuxt
+
+# Git
+.git
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Drizzle
+drizzle/migrations
