@@ -1,9 +1,7 @@
-// Pinia store for attendance tokens
+// Pinia store for attendance tokens using Supabase
 
 import { defineStore } from 'pinia'
 import type { AttendanceToken, AttendanceTokenFormData } from '~/types'
-import { getStorageItem, setStorageItem, StorageKeys } from '~/utils/storage'
-import { generateFixtureAttendanceTokens } from '~/utils/fixtures'
 
 export const useAttendanceStore = defineStore('attendance', {
   state: () => ({
@@ -62,89 +60,146 @@ export const useAttendanceStore = defineStore('attendance', {
     /**
      * Initialize attendance store
      */
-    initialize() {
-      const storedTokens = getStorageItem<AttendanceToken[]>(StorageKeys.ATTENDANCE_TOKENS)
+    async initialize() {
+      await this.fetchTokens()
+    },
 
-      if (storedTokens && storedTokens.length > 0) {
-        this.tokens = storedTokens
-      } else {
-        // First time - load fixtures
-        this.tokens = generateFixtureAttendanceTokens()
-        setStorageItem(StorageKeys.ATTENDANCE_TOKENS, this.tokens)
+    /**
+     * Fetch all tokens from Supabase
+     */
+    async fetchTokens() {
+      const supabase = useSupabaseClient()
+      this.loading = true
+
+      try {
+        const { data, error } = await supabase
+          .from('attendance_tokens')
+          .select('*')
+          .order('session_date', { ascending: false })
+
+        if (error) throw error
+
+        this.tokens = data as AttendanceToken[]
+      } catch (error: any) {
+        console.error('Error fetching attendance tokens:', error)
+        this.error = error.message
+      } finally {
+        this.loading = false
       }
     },
 
     /**
      * Award attendance token (DM action)
      */
-    awardToken(dmId: string, formData: AttendanceTokenFormData): AttendanceToken {
-      const now = new Date().toISOString()
+    async awardToken(dmId: string, formData: AttendanceTokenFormData): Promise<AttendanceToken> {
+      const supabase = useSupabaseClient()
 
-      const newToken: AttendanceToken = {
-        id: `attendance-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        characterId: formData.characterId,
-        sessionName: formData.sessionName,
-        sessionDate: formData.sessionDate,
-        awardedBy: dmId,
-        awardedAt: now
+      try {
+        const { data, error } = await supabase
+          .from('attendance_tokens')
+          .insert({
+            characterId: formData.characterId,
+            sessionName: formData.sessionName,
+            sessionDate: formData.sessionDate,
+            awardedBy: dmId
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        const newToken = data as AttendanceToken
+
+        // Add to local state
+        this.tokens.push(newToken)
+
+        return newToken
+      } catch (error: any) {
+        console.error('Error awarding attendance token:', error)
+        throw new Error(error.message || 'Failed to award attendance token')
       }
-
-      this.tokens.push(newToken)
-      setStorageItem(StorageKeys.ATTENDANCE_TOKENS, this.tokens)
-
-      return newToken
     },
 
     /**
      * Award tokens to multiple characters (bulk award)
      */
-    awardTokensBulk(dmId: string, characterIds: string[], sessionName: string, sessionDate: string): AttendanceToken[] {
-      const newTokens: AttendanceToken[] = []
-      const now = new Date().toISOString()
+    async awardTokensBulk(dmId: string, characterIds: string[], sessionName: string, sessionDate: string): Promise<AttendanceToken[]> {
+      const supabase = useSupabaseClient()
 
-      characterIds.forEach(characterId => {
-        const newToken: AttendanceToken = {
-          id: `attendance-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      try {
+        const insertData = characterIds.map(characterId => ({
           characterId,
           sessionName,
           sessionDate,
-          awardedBy: dmId,
-          awardedAt: now
-        }
+          awardedBy: dmId
+        }))
 
-        newTokens.push(newToken)
-        this.tokens.push(newToken)
-      })
+        const { data, error } = await supabase
+          .from('attendance_tokens')
+          .insert(insertData)
+          .select()
 
-      setStorageItem(StorageKeys.ATTENDANCE_TOKENS, this.tokens)
+        if (error) throw error
 
-      return newTokens
+        const newTokens = data as AttendanceToken[]
+
+        // Add to local state
+        this.tokens.push(...newTokens)
+
+        return newTokens
+      } catch (error: any) {
+        console.error('Error bulk awarding attendance:', error)
+        throw new Error(error.message || 'Failed to award attendance tokens')
+      }
     },
 
     /**
      * Delete attendance token (admin only)
      */
-    deleteToken(tokenId: string): boolean {
-      const tokenIndex = this.tokens.findIndex(t => t.id === tokenId)
+    async deleteToken(tokenId: string): Promise<boolean> {
+      const supabase = useSupabaseClient()
 
-      if (tokenIndex === -1) return false
+      try {
+        const { error } = await supabase
+          .from('attendance_tokens')
+          .delete()
+          .eq('id', tokenId)
 
-      this.tokens.splice(tokenIndex, 1)
-      setStorageItem(StorageKeys.ATTENDANCE_TOKENS, this.tokens)
+        if (error) throw error
 
-      return true
+        // Remove from local state
+        this.tokens = this.tokens.filter(t => t.id !== tokenId)
+
+        return true
+      } catch (error: any) {
+        console.error('Error deleting token:', error)
+        return false
+      }
     },
 
     /**
      * Delete all tokens for a character
      */
-    deleteTokensByCharacter(characterId: string): number {
-      const initialLength = this.tokens.length
-      this.tokens = this.tokens.filter(t => t.characterId !== characterId)
+    async deleteTokensByCharacter(characterId: string): Promise<number> {
+      const supabase = useSupabaseClient()
 
-      setStorageItem(StorageKeys.ATTENDANCE_TOKENS, this.tokens)
+      try {
+        const { data, error } = await supabase
+          .from('attendance_tokens')
+          .delete()
+          .eq('characterId', characterId)
+          .select()
 
-      return initialLength - this.tokens.length
+        if (error) throw error
+
+        // Remove from local state
+        this.tokens = this.tokens.filter(t => t.characterId !== characterId)
+
+        return data?.length || 0
+      } catch (error: any) {
+        console.error('Error deleting character tokens:', error)
+        return 0
+      }
     },
 
     /**

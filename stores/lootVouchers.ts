@@ -1,9 +1,7 @@
-// Pinia store for loot vouchers
+// Pinia store for loot vouchers using Supabase
 
 import { defineStore } from 'pinia'
 import type { LootVoucher, LootVoucherFormData, LootRarity } from '~/types'
-import { getStorageItem, setStorageItem, StorageKeys } from '~/utils/storage'
-import { generateFixtureLootVouchers } from '~/utils/fixtures'
 
 export const useLootVouchersStore = defineStore('lootVouchers', {
   state: () => ({
@@ -78,97 +76,179 @@ export const useLootVouchersStore = defineStore('lootVouchers', {
     /**
      * Initialize loot vouchers store
      */
-    initialize() {
-      const storedVouchers = getStorageItem<LootVoucher[]>(StorageKeys.LOOT_VOUCHERS)
+    async initialize() {
+      await this.fetchVouchers()
+    },
 
-      if (storedVouchers && storedVouchers.length > 0) {
-        this.vouchers = storedVouchers
-      } else {
-        // First time - load fixtures
-        this.vouchers = generateFixtureLootVouchers()
-        setStorageItem(StorageKeys.LOOT_VOUCHERS, this.vouchers)
+    /**
+     * Fetch all vouchers from Supabase
+     */
+    async fetchVouchers() {
+      const supabase = useSupabaseClient()
+      this.loading = true
+
+      try {
+        const { data, error } = await supabase
+          .from('loot_vouchers')
+          .select('*')
+          .order('awarded_at', { ascending: false })
+
+        if (error) throw error
+
+        this.vouchers = data as LootVoucher[]
+      } catch (error: any) {
+        console.error('Error fetching loot vouchers:', error)
+        this.error = error.message
+      } finally {
+        this.loading = false
       }
     },
 
     /**
      * Award a loot voucher (DM action)
      */
-    awardVoucher(dmId: string, formData: LootVoucherFormData): LootVoucher {
-      const now = new Date().toISOString()
+    async awardVoucher(dmId: string, formData: LootVoucherFormData): Promise<LootVoucher> {
+      const supabase = useSupabaseClient()
 
-      const newVoucher: LootVoucher = {
-        id: `loot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        characterId: formData.characterId,
-        name: formData.name,
-        description: formData.description,
-        rarity: formData.rarity,
-        isUsed: false,
-        awardedBy: dmId,
-        awardedAt: now
+      try {
+        const { data, error } = await supabase
+          .from('loot_vouchers')
+          .insert({
+            characterId: formData.characterId,
+            name: formData.name,
+            description: formData.description,
+            rarity: formData.rarity,
+            isUsed: false,
+            awardedBy: dmId
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        const newVoucher = data as LootVoucher
+
+        // Add to local state
+        this.vouchers.push(newVoucher)
+
+        return newVoucher
+      } catch (error: any) {
+        console.error('Error awarding voucher:', error)
+        throw new Error(error.message || 'Failed to award loot voucher')
       }
-
-      this.vouchers.push(newVoucher)
-      setStorageItem(StorageKeys.LOOT_VOUCHERS, this.vouchers)
-
-      return newVoucher
     },
 
     /**
      * Mark voucher as used
      */
-    useVoucher(voucherId: string): boolean {
-      const voucher = this.vouchers.find(v => v.id === voucherId)
+    async useVoucher(voucherId: string): Promise<boolean> {
+      const supabase = useSupabaseClient()
 
-      if (!voucher || voucher.isUsed) return false
+      try {
+        const { data, error } = await supabase
+          .from('loot_vouchers')
+          .update({
+            isUsed: true,
+            usedAt: new Date().toISOString()
+          })
+          .eq('id', voucherId)
+          .select()
+          .single()
 
-      voucher.isUsed = true
-      voucher.usedAt = new Date().toISOString()
+        if (error) throw error
 
-      setStorageItem(StorageKeys.LOOT_VOUCHERS, this.vouchers)
+        // Update local state
+        const index = this.vouchers.findIndex(v => v.id === voucherId)
+        if (index !== -1) {
+          this.vouchers[index] = data as LootVoucher
+        }
 
-      return true
+        return true
+      } catch (error: any) {
+        console.error('Error using voucher:', error)
+        return false
+      }
     },
 
     /**
      * Mark voucher as unused (undo use)
      */
-    unuseVoucher(voucherId: string): boolean {
-      const voucher = this.vouchers.find(v => v.id === voucherId)
+    async unuseVoucher(voucherId: string): Promise<boolean> {
+      const supabase = useSupabaseClient()
 
-      if (!voucher || !voucher.isUsed) return false
+      try {
+        const { data, error } = await supabase
+          .from('loot_vouchers')
+          .update({
+            isUsed: false,
+            usedAt: null
+          })
+          .eq('id', voucherId)
+          .select()
+          .single()
 
-      voucher.isUsed = false
-      voucher.usedAt = undefined
+        if (error) throw error
 
-      setStorageItem(StorageKeys.LOOT_VOUCHERS, this.vouchers)
+        // Update local state
+        const index = this.vouchers.findIndex(v => v.id === voucherId)
+        if (index !== -1) {
+          this.vouchers[index] = data as LootVoucher
+        }
 
-      return true
+        return true
+      } catch (error: any) {
+        console.error('Error unusing voucher:', error)
+        return false
+      }
     },
 
     /**
      * Delete voucher (admin only)
      */
-    deleteVoucher(voucherId: string): boolean {
-      const voucherIndex = this.vouchers.findIndex(v => v.id === voucherId)
+    async deleteVoucher(voucherId: string): Promise<boolean> {
+      const supabase = useSupabaseClient()
 
-      if (voucherIndex === -1) return false
+      try {
+        const { error } = await supabase
+          .from('loot_vouchers')
+          .delete()
+          .eq('id', voucherId)
 
-      this.vouchers.splice(voucherIndex, 1)
-      setStorageItem(StorageKeys.LOOT_VOUCHERS, this.vouchers)
+        if (error) throw error
 
-      return true
+        // Remove from local state
+        this.vouchers = this.vouchers.filter(v => v.id !== voucherId)
+
+        return true
+      } catch (error: any) {
+        console.error('Error deleting voucher:', error)
+        return false
+      }
     },
 
     /**
      * Delete all vouchers for a character
      */
-    deleteVouchersByCharacter(characterId: string): number {
-      const initialLength = this.vouchers.length
-      this.vouchers = this.vouchers.filter(v => v.characterId !== characterId)
+    async deleteVouchersByCharacter(characterId: string): Promise<number> {
+      const supabase = useSupabaseClient()
 
-      setStorageItem(StorageKeys.LOOT_VOUCHERS, this.vouchers)
+      try {
+        const { data, error } = await supabase
+          .from('loot_vouchers')
+          .delete()
+          .eq('characterId', characterId)
+          .select()
 
-      return initialLength - this.vouchers.length
+        if (error) throw error
+
+        // Remove from local state
+        this.vouchers = this.vouchers.filter(v => v.characterId !== characterId)
+
+        return data?.length || 0
+      } catch (error: any) {
+        console.error('Error deleting character vouchers:', error)
+        return 0
+      }
     },
 
     /**
