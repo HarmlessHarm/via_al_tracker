@@ -1,14 +1,13 @@
-// Pinia store for authentication using Supabase Auth
+// Pinia store for authentication
 
 import { defineStore } from 'pinia'
-import type { User as SupabaseUser } from '@supabase/supabase-js'
 import type { User, UserRole } from '~/types'
-import { useSupabaseClient } from '~/lib/supabase.client'
+import { getStorageItem, setStorageItem, removeStorageItem, StorageKeys } from '~/utils/storage'
+import { generateFixtureUsers } from '~/utils/fixtures'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     currentUser: null as User | null,
-    supabaseUser: null as SupabaseUser | null,
     users: [] as User[],
     loading: false,
     error: null as string | null
@@ -28,78 +27,24 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     /**
-     * Initialize auth store - check for existing session
+     * Initialize auth store - load from localStorage or create fixtures
      */
-    async initialize() {
-      const supabase = useSupabaseClient()
+    initialize() {
+      // Load users from storage or create fixtures
+      const storedUsers = getStorageItem<User[]>(StorageKeys.USERS)
 
-      try {
-        // Check for existing session
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (session?.user) {
-          this.supabaseUser = session.user
-          await this.fetchCurrentUser(session.user.id)
-        }
-
-        // Listen for auth changes
-        supabase.auth.onAuthStateChange(async (event: string, session: any) => {
-          if (event === 'SIGNED_IN' && session?.user) {
-            this.supabaseUser = session.user
-            await this.fetchCurrentUser(session.user.id)
-          } else if (event === 'SIGNED_OUT') {
-            this.currentUser = null
-            this.supabaseUser = null
-          }
-        })
-
-        // Fetch all users for admin/DM views
-        await this.fetchUsers()
-      } catch (error) {
-        console.error('Auth initialization error:', error)
+      if (storedUsers && storedUsers.length > 0) {
+        this.users = storedUsers
+      } else {
+        // First time - load fixtures
+        this.users = generateFixtureUsers()
+        setStorageItem(StorageKeys.USERS, this.users)
       }
-    },
 
-    /**
-     * Fetch current user profile from database
-     */
-    async fetchCurrentUser(userId: string) {
-      const supabase = useSupabaseClient()
-
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single()
-
-        if (error) throw error
-
-        this.currentUser = data as User
-      } catch (error) {
-        console.error('Error fetching user profile:', error)
-        this.error = 'Failed to fetch user profile'
-      }
-    },
-
-    /**
-     * Fetch all users (for admin views)
-     */
-    async fetchUsers() {
-      const supabase = useSupabaseClient()
-
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('isActive', true)
-          .order('name')
-
-        if (error) throw error
-
-        this.users = data as User[]
-      } catch (error) {
-        console.error('Error fetching users:', error)
+      // Check if user is already logged in
+      const storedCurrentUser = getStorageItem<User>(StorageKeys.CURRENT_USER)
+      if (storedCurrentUser) {
+        this.currentUser = storedCurrentUser
       }
     },
 
@@ -107,31 +52,33 @@ export const useAuthStore = defineStore('auth', {
      * Login with email and password
      */
     async login(email: string, password: string): Promise<{ success: boolean; message?: string }> {
-      const supabase = useSupabaseClient()
       this.loading = true
       this.error = null
 
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        })
+        // Find user by email
+        const user = this.users.find(u => u.email === email && u.isActive !== false)
 
-        if (error) {
-          this.error = error.message
-          return { success: false, message: error.message }
+        if (!user) {
+          this.error = 'Invalid email or password'
+          return { success: false, message: this.error }
         }
 
-        if (data.user) {
-          this.supabaseUser = data.user
-          await this.fetchCurrentUser(data.user.id)
+        // Check password (WARNING: Plain text comparison for POC only!)
+        if (user.password !== password) {
+          this.error = 'Invalid email or password'
+          return { success: false, message: this.error }
         }
+
+        // Set current user
+        this.currentUser = user
+        setStorageItem(StorageKeys.CURRENT_USER, user)
 
         return { success: true }
-      } catch (error: any) {
-        this.error = error.message || 'Login failed'
+      } catch (error) {
+        this.error = 'Login failed'
         console.error('Login error:', error)
-        return { success: false, message: this.error || undefined }
+        return { success: false, message: this.error }
       } finally {
         this.loading = false
       }
@@ -140,120 +87,60 @@ export const useAuthStore = defineStore('auth', {
     /**
      * Logout current user
      */
-    async logout() {
-      const supabase = useSupabaseClient()
-
-      try {
-        await supabase.auth.signOut()
-        this.currentUser = null
-        this.supabaseUser = null
-      } catch (error) {
-        console.error('Logout error:', error)
-      }
+    logout() {
+      this.currentUser = null
+      removeStorageItem(StorageKeys.CURRENT_USER)
     },
 
     /**
-     * Sign up new user (creates auth user and profile)
+     * Create a new user (admin only)
      */
-    async signup(email: string, password: string, name: string, role: UserRole = 'player'): Promise<{ success: boolean; message?: string }> {
-      const supabase = useSupabaseClient()
-      this.loading = true
-      this.error = null
-
-      try {
-        // Create auth user
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password
-        })
-
-        if (authError) {
-          this.error = authError.message
-          return { success: false, message: authError.message }
-        }
-
-        if (!authData.user) {
-          this.error = 'Failed to create user'
-          return { success: false, message: this.error }
-        }
-
-        // Create user profile
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            email,
-            name,
-            role,
-            isActive: true
-          })
-
-        if (profileError) {
-          this.error = profileError.message
-          return { success: false, message: profileError.message }
-        }
-
-        return { success: true }
-      } catch (error: any) {
-        this.error = error.message || 'Signup failed'
-        console.error('Signup error:', error)
-        return { success: false, message: this.error || undefined }
-      } finally {
-        this.loading = false
+    createUser(userData: Omit<User, 'id' | 'createdAt'>): User {
+      const newUser: User = {
+        ...userData,
+        id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        isActive: true
       }
+
+      this.users.push(newUser)
+      setStorageItem(StorageKeys.USERS, this.users)
+
+      return newUser
     },
 
     /**
      * Update user role (admin only)
      */
-    async updateUserRole(userId: string, newRole: UserRole): Promise<boolean> {
-      const supabase = useSupabaseClient()
+    updateUserRole(userId: string, newRole: UserRole): boolean {
+      const user = this.users.find(u => u.id === userId)
 
-      try {
-        const { error } = await supabase
-          .from('users')
-          .update({ role: newRole })
-          .eq('id', userId)
+      if (!user) return false
 
-        if (error) throw error
+      user.role = newRole
+      setStorageItem(StorageKeys.USERS, this.users)
 
-        // Refresh users list
-        await this.fetchUsers()
-
-        // Update current user if it's the same user
-        if (this.currentUser?.id === userId) {
-          await this.fetchCurrentUser(userId)
-        }
-
-        return true
-      } catch (error) {
-        console.error('Error updating user role:', error)
-        return false
+      // Update current user if it's the same user
+      if (this.currentUser?.id === userId) {
+        this.currentUser = user
+        setStorageItem(StorageKeys.CURRENT_USER, user)
       }
+
+      return true
     },
 
     /**
      * Soft delete user (admin only)
      */
-    async deleteUser(userId: string): Promise<boolean> {
-      const supabase = useSupabaseClient()
+    deleteUser(userId: string): boolean {
+      const user = this.users.find(u => u.id === userId)
 
-      try {
-        const { error } = await supabase
-          .from('users')
-          .update({ isActive: false })
-          .eq('id', userId)
+      if (!user) return false
 
-        if (error) throw error
+      user.isActive = false
+      setStorageItem(StorageKeys.USERS, this.users)
 
-        // Refresh users list
-        await this.fetchUsers()
-
-        return true
-      } catch (error) {
-        console.error('Error deleting user:', error)
-        return false
-      }
+      return true
     },
 
     /**

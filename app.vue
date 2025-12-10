@@ -15,18 +15,13 @@
 </template>
 
 <script setup lang="ts">
-// Initialize stores on app mount
+// Initialize auth store on app mount
+// Other stores will fetch data when their respective pages/components load
 onMounted(() => {
   const authStore = useAuthStore()
-  const charactersStore = useCharactersStore()
-  const lootStore = useLootVouchersStore()
-  const attendanceStore = useAttendanceStore()
 
-  // Initialize all stores with fixture data if needed
+  // Check for existing session
   authStore.initialize()
-  charactersStore.initialize()
-  lootStore.initialize()
-  attendanceStore.initialize()
 })
 </script>
 

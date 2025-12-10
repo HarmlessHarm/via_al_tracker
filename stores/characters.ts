@@ -1,9 +1,10 @@
-// Pinia store for characters using Supabase
+// Pinia store for characters
 
 import { defineStore } from 'pinia'
 import type { Character, CharacterFormData, CharacterWithTotalLevel } from '~/types'
+import { getStorageItem, setStorageItem, StorageKeys } from '~/utils/storage'
+import { generateFixtureCharacters } from '~/utils/fixtures'
 import { calculateTotalLevel } from '~/utils/validators'
-import { useSupabaseClient } from '~/lib/supabase.client'
 
 export const useCharactersStore = defineStore('characters', {
   state: () => ({
@@ -67,205 +68,124 @@ export const useCharactersStore = defineStore('characters', {
     /**
      * Initialize characters store
      */
-    async initialize() {
-      await this.fetchCharacters()
-    },
+    initialize() {
+      const storedCharacters = getStorageItem<Character[]>(StorageKeys.CHARACTERS)
 
-    /**
-     * Fetch all characters from Supabase
-     */
-    async fetchCharacters() {
-      const supabase = useSupabaseClient()
-      this.loading = true
-
-      try {
-        const { data, error } = await supabase
-          .from('characters')
-          .select('*')
-          .order('name')
-
-        if (error) throw error
-
-        this.characters = data as Character[]
-      } catch (error: any) {
-        console.error('Error fetching characters:', error)
-        this.error = error.message
-      } finally {
-        this.loading = false
-      }
-    },
-
-    /**
-     * Fetch characters for specific player
-     */
-    async fetchPlayerCharacters(playerId: string) {
-      const supabase = useSupabaseClient()
-
-      try {
-        const { data, error } = await supabase
-          .from('characters')
-          .select('*')
-          .eq('playerId', playerId)
-          .order('name')
-
-        if (error) throw error
-
-        // Update only the player's characters in the store
-        this.characters = [
-          ...this.characters.filter(c => c.playerId !== playerId),
-          ...(data as Character[])
-        ]
-      } catch (error: any) {
-        console.error('Error fetching player characters:', error)
-        this.error = error.message
+      if (storedCharacters && storedCharacters.length > 0) {
+        this.characters = storedCharacters
+      } else {
+        // First time - load fixtures
+        this.characters = generateFixtureCharacters()
+        setStorageItem(StorageKeys.CHARACTERS, this.characters)
       }
     },
 
     /**
      * Create a new character
      */
-    async createCharacter(playerId: string, formData: CharacterFormData): Promise<Character> {
-      const supabase = useSupabaseClient()
+    createCharacter(playerId: string, formData: CharacterFormData): Character {
+      const now = new Date().toISOString()
 
-      try {
-        const { data, error } = await supabase
-          .from('characters')
-          .insert({
-            playerId,
-            name: formData.name,
-            classes: formData.classes,
-            race: formData.race,
-            background: formData.background,
-            characterSource: formData.characterSource,
-            dndBeyondLink: formData.dndBeyondLink || null,
-            pdfUrl: formData.pdfUrl || null,
-            gold: formData.gold
-          })
-          .select()
-          .single()
-
-        if (error) throw error
-
-        const newCharacter = data as Character
-
-        // Add to local state
-        this.characters.push(newCharacter)
-
-        return newCharacter
-      } catch (error: any) {
-        console.error('Error creating character:', error)
-        throw new Error(error.message || 'Failed to create character')
+      const newCharacter: Character = {
+        id: `char-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        playerId,
+        name: formData.name,
+        classes: formData.classes,
+        race: formData.race,
+        background: formData.background,
+        characterSource: formData.characterSource,
+        dndBeyondLink: formData.dndBeyondLink,
+        pdfUrl: formData.pdfUrl,
+        gold: formData.gold,
+        createdAt: now,
+        updatedAt: now
       }
+
+      this.characters.push(newCharacter)
+      setStorageItem(StorageKeys.CHARACTERS, this.characters)
+
+      return newCharacter
     },
 
     /**
      * Update character
      */
-    async updateCharacter(characterId: string, formData: Partial<CharacterFormData>): Promise<boolean> {
-      const supabase = useSupabaseClient()
+    updateCharacter(characterId: string, formData: Partial<CharacterFormData>): boolean {
+      const charIndex = this.characters.findIndex(c => c.id === characterId)
 
-      try {
-        const { data, error } = await supabase
-          .from('characters')
-          .update({
-            ...formData,
-            updatedAt: new Date().toISOString()
-          })
-          .eq('id', characterId)
-          .select()
-          .single()
+      if (charIndex === -1) return false
 
-        if (error) throw error
-
-        // Update local state
-        const index = this.characters.findIndex(c => c.id === characterId)
-        if (index !== -1) {
-          this.characters[index] = data as Character
-        }
-
-        return true
-      } catch (error: any) {
-        console.error('Error updating character:', error)
-        this.error = error.message
-        return false
+      this.characters[charIndex] = {
+        ...this.characters[charIndex],
+        ...formData,
+        updatedAt: new Date().toISOString()
       }
+
+      setStorageItem(StorageKeys.CHARACTERS, this.characters)
+
+      return true
     },
 
     /**
      * Delete character
      */
-    async deleteCharacter(characterId: string): Promise<boolean> {
-      const supabase = useSupabaseClient()
+    deleteCharacter(characterId: string): boolean {
+      const charIndex = this.characters.findIndex(c => c.id === characterId)
 
-      try {
-        const { error } = await supabase
-          .from('characters')
-          .delete()
-          .eq('id', characterId)
+      if (charIndex === -1) return false
 
-        if (error) throw error
+      this.characters.splice(charIndex, 1)
+      setStorageItem(StorageKeys.CHARACTERS, this.characters)
 
-        // Remove from local state
-        this.characters = this.characters.filter(c => c.id !== characterId)
-
-        return true
-      } catch (error: any) {
-        console.error('Error deleting character:', error)
-        this.error = error.message
-        return false
-      }
+      return true
     },
 
     /**
      * Update character gold
      */
-    async updateGold(characterId: string, newGold: number): Promise<boolean> {
-      const supabase = useSupabaseClient()
+    updateGold(characterId: string, newGold: number): boolean {
+      const char = this.characters.find(c => c.id === characterId)
 
-      try {
-        const { data, error } = await supabase
-          .from('characters')
-          .update({
-            gold: newGold,
-            updatedAt: new Date().toISOString()
-          })
-          .eq('id', characterId)
-          .select()
-          .single()
+      if (!char) return false
 
-        if (error) throw error
+      char.gold = newGold
+      char.updatedAt = new Date().toISOString()
 
-        // Update local state
-        const index = this.characters.findIndex(c => c.id === characterId)
-        if (index !== -1) {
-          this.characters[index] = data as Character
-        }
+      setStorageItem(StorageKeys.CHARACTERS, this.characters)
 
-        return true
-      } catch (error: any) {
-        console.error('Error updating gold:', error)
-        return false
-      }
+      return true
     },
 
     /**
      * Add gold to character
      */
-    async addGold(characterId: string, amount: number): Promise<boolean> {
+    addGold(characterId: string, amount: number): boolean {
       const char = this.characters.find(c => c.id === characterId)
+
       if (!char) return false
 
-      return await this.updateGold(characterId, char.gold + amount)
+      char.gold += amount
+      char.updatedAt = new Date().toISOString()
+
+      setStorageItem(StorageKeys.CHARACTERS, this.characters)
+
+      return true
     },
 
     /**
      * Subtract gold from character
      */
-    async subtractGold(characterId: string, amount: number): Promise<boolean> {
+    subtractGold(characterId: string, amount: number): boolean {
       const char = this.characters.find(c => c.id === characterId)
+
       if (!char || char.gold < amount) return false
 
-      return await this.updateGold(characterId, char.gold - amount)
+      char.gold -= amount
+      char.updatedAt = new Date().toISOString()
+
+      setStorageItem(StorageKeys.CHARACTERS, this.characters)
+
+      return true
     },
 
     /**

@@ -7,11 +7,6 @@ export const useAuth = () => {
   const authStore = useAuthStore()
   const router = useRouter()
 
-  // Initialize store on first use
-  if (authStore.users.length === 0) {
-    authStore.initialize()
-  }
-
   /**
    * Login user
    */

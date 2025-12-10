@@ -1,21 +1,11 @@
-// Supabase client setup for browser
+// Supabase client composable - accesses client from plugin
 
-import { createClient } from '@supabase/supabase-js'
-
-// Supabase client for auth and realtime (browser-safe)
 export const useSupabaseClient = () => {
-  const config = useRuntimeConfig()
+  const nuxtApp = useNuxtApp()
 
-  const supabase = createClient(
-    config.public.supabaseUrl,
-    config.public.supabaseAnonKey,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true
-      }
-    }
-  )
+  if (!nuxtApp.$supabase) {
+    throw new Error('Supabase client not initialized. Make sure the supabase plugin is loaded.')
+  }
 
-  return supabase
+  return nuxtApp.$supabase
 }
